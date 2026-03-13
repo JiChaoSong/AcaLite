@@ -10,5 +10,10 @@ class Settings(BaseModel):
     )
     storage_path: str = os.getenv("STORAGE_PATH", "/data/documents")
 
+    ai_provider: str = os.getenv("AI_PROVIDER", "heuristic")
+    ai_base_url: str = os.getenv("AI_BASE_URL", "")
+    ai_model: str = os.getenv("AI_MODEL", "")
+    ai_api_key: str = os.getenv("AI_API_KEY", "")
+
 
 settings = Settings()
