@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import axios from 'axios'
 import { onMounted, ref } from 'vue'
 
 type ModelProvider = 'local' | 'openai-compatible'
@@ -8,6 +9,16 @@ const localModelBaseUrl = ref('http://localhost:11434')
 const openaiBaseUrl = ref('https://api.openai.com/v1')
 const apiKey = ref('')
 const message = ref('')
+const checking = ref(false)
+const backendStatus = ref('unknown')
+
+function resetSettings() {
+  provider.value = 'local'
+  localModelBaseUrl.value = 'http://localhost:11434'
+  openaiBaseUrl.value = 'https://api.openai.com/v1'
+  apiKey.value = ''
+  message.value = '已恢复默认设置，请点击保存。'
+}
 
 onMounted(() => {
   provider.value = (localStorage.getItem('model_provider') as ModelProvider) || 'local'
@@ -15,6 +26,18 @@ onMounted(() => {
   openaiBaseUrl.value = localStorage.getItem('openai_base_url') || openaiBaseUrl.value
   apiKey.value = localStorage.getItem('openai_api_key') || ''
 })
+
+async function checkBackend() {
+  checking.value = true
+  try {
+    const res = await axios.get('http://localhost:8000/api/v1/health')
+    backendStatus.value = res.data.status === 'ok' ? 'online' : 'unknown'
+  } catch {
+    backendStatus.value = 'offline'
+  } finally {
+    checking.value = false
+  }
+}
 
 function saveSettings() {
   localStorage.setItem('model_provider', provider.value)
@@ -27,7 +50,14 @@ function saveSettings() {
 
 <template>
   <el-card shadow="hover" style="border-radius:14px; max-width: 840px;">
-    <template #header><strong>设置中心</strong></template>
+    <template #header>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>设置中心</strong>
+        <el-tag :type="backendStatus === 'online' ? 'success' : backendStatus === 'offline' ? 'danger' : 'info'">
+          后端状态：{{ backendStatus }}
+        </el-tag>
+      </div>
+    </template>
     <el-alert title="用于配置模型供应商、本地模型地址和 API Key（MVP 先存储在浏览器本地）。" type="info" :closable="false" show-icon />
 
     <el-form label-width="160px" style="margin-top: 16px;">
@@ -51,7 +81,11 @@ function saveSettings() {
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" @click="saveSettings">保存设置</el-button>
+        <el-space>
+          <el-button type="primary" @click="saveSettings">保存设置</el-button>
+          <el-button @click="resetSettings">恢复默认</el-button>
+          <el-button :loading="checking" @click="checkBackend">检测后端连接</el-button>
+        </el-space>
       </el-form-item>
     </el-form>
 

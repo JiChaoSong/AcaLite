@@ -49,6 +49,25 @@ async def import_document(file: UploadFile = File(...), db: Session = Depends(ge
     return doc
 
 
+
+
+@router.get("/documents")
+def list_documents(limit: int = 20, db: Session = Depends(get_db)):
+    docs = (
+        db.execute(select(Document).order_by(Document.created_at.desc()).limit(limit))
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": doc.id,
+            "title": doc.title,
+            "file_path": doc.file_path,
+            "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        }
+        for doc in docs
+    ]
+
 @router.post("/retrieval/search")
 def search(req: SearchRequest, db: Session = Depends(get_db)):
     rows = db.execute(

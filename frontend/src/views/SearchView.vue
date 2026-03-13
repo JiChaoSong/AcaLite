@@ -1,6 +1,19 @@
 <script setup lang="ts">
 import axios from 'axios'
-import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { computed, ref } from 'vue'
+
+type SearchResult = { document_id: number; title: string; snippet: string; page_no: number }
+type AnalysisPayload = {
+  concise_summary: string
+  core_points: string[]
+  research_method: string
+  conclusion: string
+  translations: { summary_zh: string; summary_en: string }
+  mindmap_markdown: string
+}
+type CitationPayload = { style: string; formatted_text: string; bibtex: string }
+type CitationStyle = 'apa' | 'mla' | 'gbt7714'
 
 type SearchResult = { document_id: number; title: string; snippet: string; page_no: number }
 type AnalysisPayload = {
@@ -24,6 +37,10 @@ const selectedDocIds = ref<number[]>([])
 const referenceStyle = ref<CitationStyle>('apa')
 const referenceListText = ref('')
 
+const allSelected = computed(
+  () => results.value.length > 0 && results.value.every((item) => selectedDocIds.value.includes(item.document_id))
+)
+
 async function search() {
   if (!query.value.trim()) {
     results.value = []
@@ -36,6 +53,7 @@ async function search() {
   try {
     const res = await axios.post('http://localhost:8000/api/v1/retrieval/search', { query: query.value })
     results.value = res.data
+    selectedDocIds.value = []
   } catch {
     errorMessage.value = '检索失败，请确认后端已启动。'
   } finally {
@@ -47,6 +65,10 @@ function toggleDoc(documentId: number) {
   selectedDocIds.value = selectedDocIds.value.includes(documentId)
     ? selectedDocIds.value.filter((id) => id !== documentId)
     : [...selectedDocIds.value, documentId]
+}
+
+function toggleSelectAll() {
+  selectedDocIds.value = allSelected.value ? [] : results.value.map((item) => item.document_id)
 }
 
 async function generateAnalysis(documentId: number) {
@@ -69,6 +91,26 @@ async function generateReferenceList() {
     style: referenceStyle.value
   })
   referenceListText.value = res.data.reference_list
+  ElMessage.success(`已生成 ${res.data.count} 条参考文献`)
+}
+
+function copyReferenceList() {
+  if (!referenceListText.value) return
+  navigator.clipboard.writeText(referenceListText.value)
+  ElMessage.success('参考文献列表已复制')
+}
+
+function exportReferenceList() {
+  if (!referenceListText.value) return
+  const blob = new Blob([referenceListText.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `references_${referenceStyle.value}.txt`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 function downloadBibtex(documentId: number, title: string) {
@@ -96,6 +138,7 @@ function downloadBibtex(documentId: number, title: string) {
       </el-row>
 
       <el-space style="margin-top:12px;" wrap>
+        <el-checkbox :model-value="allSelected" @change="toggleSelectAll">全选当前结果</el-checkbox>
         <span>参考文献格式</span>
         <el-select v-model="referenceStyle" style="width:160px;">
           <el-option label="APA" value="apa" />
@@ -103,10 +146,12 @@ function downloadBibtex(documentId: number, title: string) {
           <el-option label="GB/T 7714" value="gbt7714" />
         </el-select>
         <el-button type="success" @click="generateReferenceList">一键生成参考文献列表</el-button>
+        <el-button @click="copyReferenceList" :disabled="!referenceListText">复制列表</el-button>
+        <el-button @click="exportReferenceList" :disabled="!referenceListText">导出 .txt</el-button>
       </el-space>
 
       <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" style="margin-top:12px;" />
-      <el-input v-if="referenceListText" type="textarea" :rows="4" :model-value="referenceListText" readonly style="margin-top:12px;" />
+      <el-input v-if="referenceListText" type="textarea" :rows="5" :model-value="referenceListText" readonly style="margin-top:12px;" />
     </el-card>
 
     <el-card v-for="item in results" :key="`${item.document_id}-${item.page_no}`" shadow="never" style="border-radius:14px;">
@@ -126,9 +171,7 @@ function downloadBibtex(documentId: number, title: string) {
         <el-button @click="generateCitation(item.document_id, 'apa')">APA</el-button>
         <el-button @click="generateCitation(item.document_id, 'mla')">MLA</el-button>
         <el-button @click="generateCitation(item.document_id, 'gbt7714')">GB/T 7714</el-button>
-        <el-button v-if="citations[item.document_id]" type="primary" plain @click="downloadBibtex(item.document_id, item.title)">
-          导出 .bib
-        </el-button>
+        <el-button v-if="citations[item.document_id]" type="primary" plain @click="downloadBibtex(item.document_id, item.title)">导出 .bib</el-button>
       </el-space>
 
       <el-collapse style="margin-top:12px;">
