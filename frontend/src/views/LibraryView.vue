@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import axios from 'axios'
+import { UploadFilled } from '@element-plus/icons-vue'
 import { ref } from 'vue'
 
 type AnalysisPayload = {
@@ -39,7 +40,7 @@ async function uploadFile(event: Event) {
 
     message.value = `导入并分析成功: ${importRes.data.title} (id=${importRes.data.id})`
     analysis.value = analysisRes.data
-  } catch (error: unknown) {
+  } catch {
     message.value = '上传或分析失败，请检查后端服务状态。'
   } finally {
     loading.value = false
@@ -48,25 +49,45 @@ async function uploadFile(event: Event) {
 </script>
 
 <template>
-  <section>
-    <h2>本地文献导入（PDF / CAJ）</h2>
-    <input type="file" accept=".pdf,.caj,application/pdf" @change="uploadFile" />
-    <p>{{ loading ? '处理中...' : message }}</p>
+  <el-card shadow="hover" style="border-radius: 14px;">
+    <template #header>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600;">本地文献导入（PDF / CAJ）</span>
+        <el-tag type="success">自动AI分析</el-tag>
+      </div>
+    </template>
 
-    <div v-if="analysis" style="background: #f7f8fa; border-radius: 8px; padding: 12px; margin-top: 12px;">
-      <h3>AI 文献分析结果</h3>
-      <p><b>精简摘要：</b>{{ analysis.concise_summary }}</p>
-      <p><b>核心观点：</b></p>
-      <ul>
-        <li v-for="(point, index) in analysis.core_points" :key="index">{{ point }}</li>
-      </ul>
-      <p><b>研究方法：</b>{{ analysis.research_method }}</p>
-      <p><b>结论：</b>{{ analysis.conclusion }}</p>
-      <p><b>中文翻译：</b>{{ analysis.translations.summary_zh }}</p>
-      <p><b>英文翻译：</b>{{ analysis.translations.summary_en }}</p>
+    <el-space direction="vertical" fill :size="14">
+      <input id="doc-upload" type="file" accept=".pdf,.caj,application/pdf" style="display:none" @change="uploadFile" />
+      <label for="doc-upload">
+        <el-button type="primary" :loading="loading" :icon="UploadFilled">选择并上传文件</el-button>
+      </label>
+      <el-alert v-if="message" :title="message" :type="message.includes('失败') ? 'error' : 'success'" show-icon :closable="false" />
+    </el-space>
 
-      <p><b>文献思维导图（Mermaid）：</b></p>
-      <pre style="white-space: pre-wrap;">{{ analysis.mindmap_markdown }}</pre>
-    </div>
-  </section>
+    <el-card v-if="analysis" style="margin-top: 16px; background: #fafcff;" shadow="never">
+      <template #header>
+        <strong>AI 文献分析结果</strong>
+      </template>
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="精简摘要">{{ analysis.concise_summary }}</el-descriptions-item>
+        <el-descriptions-item label="研究方法">{{ analysis.research_method }}</el-descriptions-item>
+        <el-descriptions-item label="结论">{{ analysis.conclusion }}</el-descriptions-item>
+        <el-descriptions-item label="中文翻译">{{ analysis.translations.summary_zh }}</el-descriptions-item>
+        <el-descriptions-item label="英文翻译">{{ analysis.translations.summary_en }}</el-descriptions-item>
+      </el-descriptions>
+
+      <div style="margin-top:12px;">
+        <strong>核心观点</strong>
+        <el-tag v-for="(point, index) in analysis.core_points" :key="index" style="margin: 8px 8px 0 0;" effect="plain">
+          {{ point }}
+        </el-tag>
+      </div>
+
+      <div style="margin-top:12px;">
+        <strong>文献思维导图（Mermaid）</strong>
+        <el-input type="textarea" :rows="8" :model-value="analysis.mindmap_markdown" readonly />
+      </div>
+    </el-card>
+  </el-card>
 </template>
