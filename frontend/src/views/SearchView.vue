@@ -3,19 +3,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { computed, ref } from 'vue'
 
-type SearchResult = { document_id: number; title: string; snippet: string; page_no: number }
-type AnalysisPayload = {
-  concise_summary: string
-  core_points: string[]
-  research_method: string
-  conclusion: string
-  translations: { summary_zh: string; summary_en: string }
-  mindmap_markdown: string
-}
-type CitationPayload = { style: string; formatted_text: string; bibtex: string }
-type CitationStyle = 'apa' | 'mla' | 'gbt7714'
-
-type SearchResult = { document_id: number; title: string; snippet: string; page_no: number }
+type SearchRow = { document_id: number; title: string; snippet: string; page_no: number }
 type AnalysisPayload = {
   concise_summary: string
   core_points: string[]
@@ -28,7 +16,7 @@ type CitationPayload = { style: string; formatted_text: string; bibtex: string }
 type CitationStyle = 'apa' | 'mla' | 'gbt7714'
 
 const query = ref('')
-const results = ref<SearchResult[]>([])
+const results = ref<SearchRow[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const analyses = ref<Record<number, AnalysisPayload>>({})

@@ -15,18 +15,6 @@ type AnalysisPayload = {
 
 type DocumentItem = { id: number; title: string; file_path: string; created_at: string | null }
 
-type AnalysisPayload = {
-  concise_summary: string
-  core_points: string[]
-  research_method: string
-  conclusion: string
-  translations: {
-    summary_zh: string
-    summary_en: string
-  }
-  mindmap_markdown: string
-}
-
 const message = ref('')
 const loading = ref(false)
 const analysis = ref<AnalysisPayload | null>(null)
