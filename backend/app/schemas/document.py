@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DocumentOut(BaseModel):
@@ -16,4 +16,9 @@ class SearchRequest(BaseModel):
 
 class CitationRequest(BaseModel):
     document_id: int
+    style: str = "apa"
+
+
+class CitationListRequest(BaseModel):
+    document_ids: list[int] = Field(default_factory=list)
     style: str = "apa"
