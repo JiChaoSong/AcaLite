@@ -27,6 +27,8 @@ type CitationPayload = {
   bibtex: string
 }
 
+type CitationStyle = 'apa' | 'mla' | 'gbt7714'
+
 const query = ref('')
 const results = ref<SearchResult[]>([])
 const loading = ref(false)
@@ -35,9 +37,15 @@ const errorMessage = ref('')
 const analyses = ref<Record<number, AnalysisPayload>>({})
 const citations = ref<Record<number, CitationPayload>>({})
 
+const selectedDocIds = ref<number[]>([])
+const referenceStyle = ref<CitationStyle>('apa')
+const referenceListText = ref('')
+
 async function search() {
   if (!query.value.trim()) {
     results.value = []
+    selectedDocIds.value = []
+    referenceListText.value = ''
     return
   }
 
@@ -53,17 +61,38 @@ async function search() {
   }
 }
 
+function toggleDoc(documentId: number) {
+  if (selectedDocIds.value.includes(documentId)) {
+    selectedDocIds.value = selectedDocIds.value.filter((id) => id !== documentId)
+  } else {
+    selectedDocIds.value = [...selectedDocIds.value, documentId]
+  }
+}
+
 async function generateAnalysis(documentId: number) {
   const res = await axios.post(`http://localhost:8000/api/v1/ai/analyze/${documentId}`)
   analyses.value = { ...analyses.value, [documentId]: res.data }
 }
 
-async function generateCitation(documentId: number, style: 'apa' | 'gbt7714') {
+async function generateCitation(documentId: number, style: CitationStyle) {
   const res = await axios.post('http://localhost:8000/api/v1/citations/generate', {
     document_id: documentId,
     style
   })
   citations.value = { ...citations.value, [documentId]: res.data }
+}
+
+async function generateReferenceList() {
+  if (!selectedDocIds.value.length) {
+    referenceListText.value = '请先勾选要加入参考文献列表的文献。'
+    return
+  }
+
+  const res = await axios.post('http://localhost:8000/api/v1/citations/generate-list', {
+    document_ids: selectedDocIds.value,
+    style: referenceStyle.value
+  })
+  referenceListText.value = res.data.reference_list
 }
 
 function downloadBibtex(documentId: number, title: string) {
@@ -92,16 +121,32 @@ function downloadBibtex(documentId: number, title: string) {
       <button @click="search" :disabled="loading">{{ loading ? '搜索中...' : '搜索' }}</button>
     </div>
 
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom: 12px;">
+      <label>参考文献格式</label>
+      <select v-model="referenceStyle">
+        <option value="apa">APA</option>
+        <option value="mla">MLA</option>
+        <option value="gbt7714">GB/T 7714</option>
+      </select>
+      <button @click="generateReferenceList">一键生成参考文献列表</button>
+    </div>
+
+    <pre v-if="referenceListText" style="white-space: pre-wrap; background:#f4f8ff; padding:8px; border-radius:4px;">{{ referenceListText }}</pre>
+
     <p v-if="errorMessage" style="color: #d33;">{{ errorMessage }}</p>
 
     <ul style="padding-left: 18px; display: grid; gap: 16px;">
       <li v-for="item in results" :key="`${item.document_id}-${item.page_no}`">
-        <strong>{{ item.title }}</strong> - p{{ item.page_no }}<br />
+        <label style="display:flex; gap:8px; align-items:center;">
+          <input type="checkbox" :checked="selectedDocIds.includes(item.document_id)" @change="toggleDoc(item.document_id)" />
+          <strong>{{ item.title }}</strong> - p{{ item.page_no }}
+        </label>
         <p style="margin: 8px 0;">{{ item.snippet }}</p>
 
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
           <button @click="generateAnalysis(item.document_id)">AI 分析</button>
           <button @click="generateCitation(item.document_id, 'apa')">APA 引用</button>
+          <button @click="generateCitation(item.document_id, 'mla')">MLA 引用</button>
           <button @click="generateCitation(item.document_id, 'gbt7714')">GB/T 7714 引用</button>
           <button v-if="citations[item.document_id]" @click="downloadBibtex(item.document_id, item.title)">
             导出 .bib

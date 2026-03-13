@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.document import AIReport, Citation, Document, DocumentChunk
-from app.schemas.document import CitationRequest, DocumentOut, SearchRequest
+from app.schemas.document import CitationListRequest, CitationRequest, DocumentOut, SearchRequest
 from app.services.ai_service import build_ai_analysis
 from app.services.document_service import calc_hash, save_file
 
 router = APIRouter(prefix="/api/v1")
 SUPPORTED_EXTENSIONS = {".pdf", ".caj"}
+SUPPORTED_CITATION_STYLES = {"apa", "mla", "gbt7714"}
 
 
 @router.get("/health")
@@ -114,6 +115,14 @@ def summarize(document_id: int, db: Session = Depends(get_db)):
     }
 
 
+def _format_citation(style: str, title: str) -> str:
+    if style == "apa":
+        return f"{title}. (n.d.). AcaLite Local Library."
+    if style == "mla":
+        return f'"{title}." AcaLite Local Library, n.d., acalite.local.'
+    return f"{title}[J]. AcaLite Local Library, n.d."
+
+
 @router.post("/citations/generate")
 def generate_citation(req: CitationRequest, db: Session = Depends(get_db)):
     doc = db.get(Document, req.document_id)
@@ -121,13 +130,10 @@ def generate_citation(req: CitationRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="document not found")
 
     style = req.style.lower()
-    if style not in {"apa", "gbt7714"}:
-        raise HTTPException(status_code=400, detail="style must be apa or gbt7714")
+    if style not in SUPPORTED_CITATION_STYLES:
+        raise HTTPException(status_code=400, detail="style must be apa, mla or gbt7714")
 
-    if style == "apa":
-        formatted = f"{doc.title}. (n.d.). AcaLite Local Library."
-    else:
-        formatted = f"{doc.title}[J]. AcaLite Local Library, n.d."
+    formatted = _format_citation(style, doc.title)
 
     bibtex = (
         f"@misc{{doc_{doc.id},\n"
@@ -147,3 +153,41 @@ def generate_citation(req: CitationRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {"style": style, "formatted_text": formatted, "bibtex": bibtex}
+
+
+@router.post("/citations/generate-list")
+def generate_citation_list(req: CitationListRequest, db: Session = Depends(get_db)):
+    style = req.style.lower()
+    if style not in SUPPORTED_CITATION_STYLES:
+        raise HTTPException(status_code=400, detail="style must be apa, mla or gbt7714")
+
+    if not req.document_ids:
+        raise HTTPException(status_code=400, detail="document_ids cannot be empty")
+
+    docs = (
+        db.execute(select(Document).where(Document.id.in_(req.document_ids)).order_by(Document.id.asc()))
+        .scalars()
+        .all()
+    )
+    if not docs:
+        raise HTTPException(status_code=404, detail="documents not found")
+
+    references = []
+    for doc in docs:
+        formatted = _format_citation(style, doc.title)
+        references.append(formatted)
+        citation = Citation(
+            document_id=doc.id,
+            style=style,
+            formatted_text=formatted,
+            bibtex="",
+        )
+        db.add(citation)
+
+    db.commit()
+    return {
+        "style": style,
+        "count": len(references),
+        "references": references,
+        "reference_list": "\n".join(f"[{i + 1}] {ref}" for i, ref in enumerate(references)),
+    }
