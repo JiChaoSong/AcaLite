@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.database import Base, engine, get_db
+from app.core.database import  get_db
 from app.core.config import settings
 from app.models.document import AIReport, Citation, Document, DocumentChunk
 from app.schemas.document import CitationRequest, DocumentOut, SearchRequest
@@ -10,10 +10,6 @@ from app.services.document_service import calc_hash, save_file
 
 router = APIRouter(prefix="/api/v1")
 
-
-@router.on_event("startup")
-def startup_create_tables() -> None:
-    Base.metadata.create_all(bind=engine)
 
 
 @router.get("/health")
